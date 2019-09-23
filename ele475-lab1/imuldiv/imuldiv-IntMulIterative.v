@@ -98,14 +98,15 @@ module imuldiv_IntMulIterativeDpath
   wire [63:0] alu_out;
   wire [ 5:0] state_p1;
   wire        is_signed_result;
+  wire [63:0] add_mux_out;
 
   //----------------------------------------------------------------------
   // Combinational Logic
   //----------------------------------------------------------------------
 
   // Unsign operands if necessary
-  assign unsigned_a = sign_bit_a ? (~a_reg + 1'b1) : a_reg;
-  assign unsigned_b = sign_bit_b ? (~b_reg + 1'b1) : b_reg;
+  assign unsigned_a = mulreq_msg_a[31] ? (~mulreq_msg_a + 1'b1) : mulreq_msg_a;
+  assign unsigned_b = mulreq_msg_b[31] ? (~mulreq_msg_b + 1'b1) : mulreq_msg_b;
 
   // minor wires
   assign a_shift = a_reg << 1;
@@ -118,14 +119,14 @@ module imuldiv_IntMulIterativeDpath
   assign add_mux_out = b_reg[0] ? alu_out : result_reg;
 
   // MUX before Registers: Option2 -> Option1 -> Option0
-  assign a_reg_nxt = (a_nxt_sel[1]) ? a_reg :
-                     (a_nxt_sel[0]) ? {32'b0, {unsigned_a}} : a_shift;
-  assign b_reg_nxt = (b_nxt_sel[1]) ? b_reg :
-                     (b_nxt_sel[0]) ? unsigned_b : b_shift;
-  assign state_nxt = (state_nxt_sel[1]) ? state :
-                     (state_nxt_sel[0]) ? 6'b0 : state_p1;
-  assign result_reg_nxt = (result_nxt_sel[1]) ? result_reg :
-                          (result_nxt_sel[0]) ? 64'b0 : add_mux_out;
+  assign a_reg_nxt = a_nxt_sel[1] ? a_reg :
+                     a_nxt_sel[0] ? {32'b0, {unsigned_a}} : a_shift;
+  assign b_reg_nxt = b_nxt_sel[1] ? b_reg :
+                     b_nxt_sel[0] ? unsigned_b : b_shift;
+  assign state_nxt = state_nxt_sel[1] ? state :
+                     state_nxt_sel[0] ? 6'b0 : state_p1;
+  assign result_reg_nxt = result_nxt_sel[1] ? result_reg :
+                          result_nxt_sel[0] ? 64'b0 : add_mux_out;
   assign sgn_reg_nxt = sgn_nxt_sel ? is_signed_result : 1'b0;
   
   //==== OUTPUT SECTION ====
@@ -137,9 +138,8 @@ module imuldiv_IntMulIterativeDpath
   // Sequential Logic
   //----------------------------------------------------------------------
 
-  always @( posedge clk or posedge rst ) begin
-
-    if (rst) begin              // Active high reset
+  always @( posedge clk or posedge reset ) begin
+    if (reset) begin              // Active high reset
       a_reg    <= 64'b0;
       b_reg    <= 32'b0;
       state    <=  6'b0;
@@ -153,7 +153,6 @@ module imuldiv_IntMulIterativeDpath
       result_reg <= result_reg_nxt;
       sgn_reg    <= sgn_reg_nxt;    
     end
-
   end
 
 endmodule
@@ -202,10 +201,10 @@ module imuldiv_IntMulIterativeCtrl
       sgn_nxt_sel    = 1'b0;
     end
     else if (state == 6'd33) begin // COMP STAGE: add 32 times
-      a_nxt_sel      = 2'b2;
-      b_nxt_sel      = 2'b2;
+      a_nxt_sel      = 2'd2;
+      b_nxt_sel      = 2'd2;
       state_nxt_sel  = 2'b1;
-      result_nxt_sel = 2'b2;
+      result_nxt_sel = 2'd2;
       sgn_nxt_sel    = 1'b0;
     end
   end
