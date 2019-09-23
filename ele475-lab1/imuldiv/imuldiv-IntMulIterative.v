@@ -17,10 +17,11 @@ module imuldiv_IntMulIterative
 
   output [63:0] mulresp_msg_result,
   output        mulresp_val,
-  input         mulresp_rdy
+  input         mulresp_rdy         // TB ready to accept data
 );
   wire   [ 5:0] state;
   wire   [ 1:0] state_nxt_sel, a_nxt_sel, b_nxt_sel, result_nxt_sel;
+  wire          sgn_nxt_sel;
 
   imuldiv_IntMulIterativeDpath dpath
   (
@@ -38,6 +39,7 @@ module imuldiv_IntMulIterative
     .a_nxt_sel          (a_nxt_sel),
     .b_nxt_sel          (b_nxt_sel),
     .result_nxt_sel     (result_nxt_sel),
+    .sgn_nxt_sel        (sgn_nxt_sel)
   );
 
   imuldiv_IntMulIterativeCtrl ctrl
@@ -48,6 +50,7 @@ module imuldiv_IntMulIterative
     .a_nxt_sel          (a_nxt_sel),
     .b_nxt_sel          (b_nxt_sel),
     .result_nxt_sel     (result_nxt_sel),
+    .sgn_nxt_sel        (sgn_nxt_sel)
   );
 
 endmodule
@@ -75,21 +78,60 @@ module imuldiv_IntMulIterativeDpath
   input  [ 1:0] a_nxt_sel,
   input  [ 1:0] b_nxt_sel,
   input  [ 1:0] result_nxt_sel,
+  input         sgn_nxt_sel         //
 );
   //==== reg/wire declaration ===============================
-  reg  [63:0] a_reg, a_reg_nxt;           // Register for storing operand A
-  reg  [31:0] b_reg, b_reg_nxt;           // Register for storing operand B
-  reg         sgn_reg, sgn_reg_nxt;       // Register for storing signed or unsigned result
-  reg  [63:0] result_reg, result_reg_nxt; // Register for storing result
-  reg  [ 5:0] state, state_nxt;           // FSM
+  reg  [63:0] a_reg;           // Register for storing operand A
+  wire [63:0] a_reg_nxt;
+  reg  [31:0] b_reg;           // Register for storing operand B
+  wire [31:0] b_reg_nxt;
+  reg         sgn_reg;         // Register for storing signed or unsigned result
+  wire        sgn_reg_nxt;
+  reg  [63:0] result_reg;      // Register for storing result
+  wire [63:0] result_reg_nxt; 
+  reg  [ 5:0] state;           // FSM
+  wire [ 5:0] state_nxt;          
 
-  wire is_result_signed;
-  wire sign_bit_a, sign_bit_b;
   wire [31:0] unsigned_a, unsigned_b;     //
   wire [63:0] a_shift;
   wire [31:0] b_shift;
   wire [63:0] alu_out;
   wire [ 5:0] state_p1;
+  wire        is_signed_result;
+
+  //----------------------------------------------------------------------
+  // Combinational Logic
+  //----------------------------------------------------------------------
+
+  // Unsign operands if necessary
+  assign unsigned_a = sign_bit_a ? (~a_reg + 1'b1) : a_reg;
+  assign unsigned_b = sign_bit_b ? (~b_reg + 1'b1) : b_reg;
+
+  // minor wires
+  assign a_shift = a_reg << 1;
+  assign b_shift = b_reg >> 1;
+  assign alu_out = a_reg + result_reg;
+  assign state_p1 = state + 6'd1;
+  assign is_signed_result = mulreq_msg_a[31] ^ mulreq_msg_b[31];
+
+  // MUX
+  assign add_mux_out = b_reg[0] ? alu_out : result_reg;
+
+  // MUX before Registers: Option2 -> Option1 -> Option0
+  assign a_reg_nxt = (a_nxt_sel[1]) ? a_reg :
+                     (a_nxt_sel[0]) ? {32'b0, {unsigned_a}} : a_shift;
+  assign b_reg_nxt = (b_nxt_sel[1]) ? b_reg :
+                     (b_nxt_sel[0]) ? unsigned_b : b_shift;
+  assign state_nxt = (state_nxt_sel[1]) ? state :
+                     (state_nxt_sel[0]) ? 6'b0 : state_p1;
+  assign result_reg_nxt = (result_nxt_sel[1]) ? result_reg :
+                          (result_nxt_sel[0]) ? 64'b0 : add_mux_out;
+  assign sgn_reg_nxt = sgn_nxt_sel ? is_signed_result : 1'b0;
+  
+  //==== OUTPUT SECTION ====
+  assign mulresp_msg_result = sgn_reg ? (~result_reg + 64'b1) : result_reg;
+  assign mulreq_rdy  = mulresp_rdy && (state == 6'd33);
+  assign mulresp_val = (state == 6'd33);
 
   //----------------------------------------------------------------------
   // Sequential Logic
@@ -105,62 +147,14 @@ module imuldiv_IntMulIterativeDpath
       sgn_reg    <=  1'b0;
     end
     else if (mulresp_rdy) begin // Stall the pipeline if the response interface is not ready
-      a_reg    <= a_reg_nxt;
-      b_reg    <= b_reg_nxt;
-      state    <= state_nxt;
+      a_reg      <= a_reg_nxt;
+      b_reg      <= b_reg_nxt;
+      state      <= state_nxt;
       result_reg <= result_reg_nxt;
-      sgn_reg  <= sgn_reg_nxt;    
+      sgn_reg    <= sgn_reg_nxt;    
     end
 
   end
-
-  //----------------------------------------------------------------------
-  // Combinational Logic
-  //----------------------------------------------------------------------
-
-  // Extract sign bits
-  assign sign_bit_a = a_reg[31];
-  assign sign_bit_b = b_reg[31];
-  assign is_result_signed = sign_bit_a ^ sign_bit_b;
-
-  // Unsign operands if necessary
-  assign unsigned_a = sign_bit_a ? (~a_reg + 1'b1) : a_reg;
-  assign unsigned_b = sign_bit_b ? (~b_reg + 1'b1) : b_reg;
-
-  //==== Computation logic ====
-
-  // minor wires
-  assign a_shift = a_reg << 1;
-  assign b_shift = b_reg >> 1;
-  assign alu_out = a_reg + result_reg;
-  assign state_p1 = state + 6'd1;
-  assign mulresp_msg_result
-    = ( is_result_signed ) ? (~result_reg + 64'b1) : result_reg;  
-
-  // MUX before Registers
-  always@(*) begin
-    if (state == 6'd0) begin // INIT STAGE: activate after receive req_val
-      if (mulreq_val) begin
-        a_reg_nxt = {32'b0, {unsigned_a}};
-        b_reg_nxt = unsigned_b;
-        state_nxt = state_p1;
-      end
-    end
-    else if (state < 6'd33) begin // COMP STAGE: add 32 times
-      a_reg_nxt = a_shift;
-      b_reg_nxt = b_shift;
-      state_nxt = state_p1;
-      if (b_reg[0]) 
-        result_reg_nxt = alu_out;
-    end
-  end
-
-  // Set the val/rdy signals. The request is ready when the response is
-  // ready, and the response is valid when there is valid data in the
-  // input registers.
-
-  //assign mulreq_rdy  = mulresp_rdy;
-  //assign mulresp_val = val_reg;
 
 endmodule
 
@@ -175,7 +169,8 @@ module imuldiv_IntMulIterativeCtrl
   output reg [1:0] state_nxt_sel,
   output reg [1:0] a_nxt_sel,
   output reg [1:0] b_nxt_sel,
-  output reg [1:0] result_nxt_sel  //
+  output reg [1:0] result_nxt_sel,
+  output reg       sgn_nxt_sel   //
 );
   //----------------------------------------------------------------------
   // Combinational Logic
@@ -184,30 +179,34 @@ module imuldiv_IntMulIterativeCtrl
   // MUX selectors
   always@(*) begin
     // Default
-    state_nxt_sel  = 1'b1;
-    a_nxt_sel      = 1'b1;
-    b_nxt_sel      = 1'b1;
-    result_nxt_sel = 1'b0;
+    state_nxt_sel  = 2'd2;
+    a_nxt_sel      = 2'd2;
+    b_nxt_sel      = 2'd2;
+    result_nxt_sel = 2'd2;
+    sgn_nxt_sel    = 1'b0;
 
     if (state == 6'd0) begin // INIT STAGE: activate after receive req_val
       if (mulreq_val) begin
-        a_nxt_sel     = 1'b1;
-        b_nxt_sel     = 1'b1;
-        state_nxt_sel = 1'b0;
-        result_nxt_sel = 1'b1;
+        a_nxt_sel      = 2'b1;
+        b_nxt_sel      = 2'b1;
+        state_nxt_sel  = 2'b0;
+        result_nxt_sel = 2'b1;
+        sgn_nxt_sel    = 1'b1;
       end
     end
     else if (state < 6'd33) begin // COMP STAGE: add 32 times
-      a_nxt_sel     = 1'b0;
-      b_nxt_sel     = 1'b0;
-      state_nxt_sel = 1'b0;
-      result_nxt_sel = 1'b0;
+      a_nxt_sel      = 2'b0;
+      b_nxt_sel      = 2'b0;
+      state_nxt_sel  = 2'b0;
+      result_nxt_sel = 2'b0;
+      sgn_nxt_sel    = 1'b0;
     end
     else if (state == 6'd33) begin // COMP STAGE: add 32 times
-      a_nxt_sel     = 1'b1;
-      b_nxt_sel     = 1'b1;
-      state_nxt_sel = 1'b1;
-      result_nxt_sel = 1'b1;
+      a_nxt_sel      = 2'b2;
+      b_nxt_sel      = 2'b2;
+      state_nxt_sel  = 2'b1;
+      result_nxt_sel = 2'b2;
+      sgn_nxt_sel    = 1'b0;
     end
   end
 
