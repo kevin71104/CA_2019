@@ -198,7 +198,7 @@ module imuldiv_IntMulIterativeCtrl
       b_nxt_sel      = 2'b0;
       state_nxt_sel  = 2'b0;
       result_nxt_sel = 2'b0;
-      sgn_nxt_sel    = 1'b0;
+      sgn_nxt_sel    = 1'b1;
     end
     else if (state == 6'd33) begin // COMP STAGE: add 32 times
       a_nxt_sel      = 2'd2;
