@@ -9,11 +9,10 @@
 
 module imuldiv_IntDivIterative
 (
-
   input         clk,
   input         reset,
 
-  input         divreq_msg_fn,
+  input         divreq_msg_fn,       // 1 : signed (IMULDIV_DIVREQ_MSG_FUNC_SIGNED)
   input  [31:0] divreq_msg_a,
   input  [31:0] divreq_msg_b,
   input         divreq_val,
@@ -21,8 +20,13 @@ module imuldiv_IntDivIterative
 
   output [63:0] divresp_msg_result,
   output        divresp_val,
-  input         divresp_rdy
+  input         divresp_rdy          //
 );
+
+  //==== reg/wire declaration ====
+  wire   [ 5:0] state;
+  wire   [ 1:0] state_nxt_sel, a_nxt_sel;
+  wire          sub_mux_sel, div_sgn_nxt_sel, rem_sgn_nxt_sel;
 
   imuldiv_IntDivIterativeDpath dpath
   (
@@ -35,11 +39,27 @@ module imuldiv_IntDivIterative
     .divreq_rdy         (divreq_rdy),
     .divresp_msg_result (divresp_msg_result),
     .divresp_val        (divresp_val),
-    .divresp_rdy        (divresp_rdy)
+    .divresp_rdy        (divresp_rdy),
+    .state              (state),
+    .state_nxt_sel      (state_nxt_sel),
+    .a_nxt_sel          (a_nxt_sel),
+    .sub_mux_sel        (sub_mux_sel),
+    .div_sgn_nxt_sel    (div_sgn_nxt_sel),
+    .sgn_nxt_sel        (rem_sgn_nxt_sel)
   );
 
   imuldiv_IntDivIterativeCtrl ctrl
   (
+    .mulreq_val         (mulreq_val),
+    .a_sign_bit         (divreq_msg_a[31]),
+    .b_sign_bit         (divreq_msg_b[31]),
+    .divreq_msg_fn      (divreq_msg_fn),
+    .state              (state),
+    .state_nxt_sel      (state_nxt_sel),
+    .a_nxt_sel          (a_nxt_sel),
+    .sub_mux_sel        (sub_mux_sel),
+    .div_sgn_nxt_sel    (div_sgn_nxt_sel),
+    .sgn_nxt_sel        (rem_sgn_nxt_sel)
   );
 
 endmodule
@@ -61,29 +81,32 @@ module imuldiv_IntDivIterativeDpath
 
   output [63:0] divresp_msg_result, // Result of operation
   output        divresp_val,        // Response val Signal
-  input         divresp_rdy         // Response rdy Signal
+  input         divresp_rdy,        // Response rdy Signal
+  
+  // Interface with Control Unit
+  output [ 5:0] state,     
+  input  [ 1:0] state_nxt_sel,
+  input  [ 1:0] a_nxt_sel,
+  input         sub_mux_sel,
+  input         div_sgn_nxt_sel,
+  input         rem_sgn_nxt_sel     //
 );
 
-  //----------------------------------------------------------------------
-  // Sequential Logic
-  //----------------------------------------------------------------------
-
-  reg         fn_reg;      // Register for storing function
-  reg  [31:0] a_reg;       // Register for storing operand A
-  reg  [31:0] b_reg;       // Register for storing operand B
-  reg         val_reg;     // Register for storing valid bit
-
-  always @( posedge clk ) begin
-
-    // Stall the pipeline if the response interface is not ready
-    if ( divresp_rdy ) begin
-      fn_reg  <= divreq_msg_fn;
-      a_reg   <= divreq_msg_a;
-      b_reg   <= divreq_msg_b;
-      val_reg <= divreq_val;
-    end
-
-  end
+  //==== reg/wire declaration ====
+  reg  [63:0] a_reg;            // Register for storing operand A
+  wire [63:0] a_reg_nxt;
+  reg  [31:0] b_reg;            // Register for storing operand B
+  wire [31:0] b_reg_nxt;
+  reg         div_sgn_reg;      // Register for storing signed or unsigned quotient
+  wire        div_sgn_reg_nxt;
+  reg         rem_sgn_reg;      // Register for storing signed or unsigned remainder
+  wire        rem_sgn_reg_nxt;
+  reg  [ 5:0] state;            // FSM
+  wire [ 5:0] state_nxt;
+  reg         divresp_val;      // Output Reg
+  wire        divresp_val_nxt; 
+  reg         divreq_rdy;       // Output Reg
+  wire        divreq_rdy_nxt;
 
   //----------------------------------------------------------------------
   // Combinational Logic
@@ -111,16 +134,6 @@ module imuldiv_IntDivIterativeDpath
     : ( fn_reg == `IMULDIV_DIVREQ_MSG_FUNC_UNSIGNED ) ? a_reg % b_reg
     :                                                   32'bx;
 
-  // Determine whether or not result is signed. Usually the result is
-  // signed if one and only one of the input operands is signed. In other
-  // words, the result is signed if the xor of the sign bits of the input
-  // operands is true. Remainder opeartions are a bit trickier, and here
-  // we simply assume that the result is signed if the dividend for the
-  // rem operation is signed.
-
-  wire is_result_signed_div = sign_bit_a ^ sign_bit_b;
-  wire is_result_signed_rem = sign_bit_a;
-
   // Sign the final results if necessary
 
   wire [31:0] signed_quotient
@@ -135,12 +148,20 @@ module imuldiv_IntDivIterativeDpath
 
   assign divresp_msg_result = { signed_remainder, signed_quotient };
 
-  // Set the val/rdy signals. The request is ready when the response is
-  // ready, and the response is valid when there is valid data in the
-  // input registers.
+  //----------------------------------------------------------------------
+  // Sequential Logic
+  //----------------------------------------------------------------------
 
-  assign divreq_rdy  = divresp_rdy;
-  assign divresp_val = val_reg;
+  always @(posedge clk or posedge reset) begin
+    if (reset) begin              // Active high reset
+      
+    end
+    // Stall the pipeline if the response interface is not ready
+    else if ( divresp_rdy ) begin
+      a_reg   <= divreq_msg_a;
+    end
+
+  end
 
 endmodule
 
@@ -149,7 +170,18 @@ endmodule
 //------------------------------------------------------------------------
 
 module imuldiv_IntDivIterativeCtrl
-(
+( 
+  input            mulreq_val,
+  input            a_sign_bit,
+  input            b_sign_bit,
+  input            divreq_msg_fn,
+
+  input      [5:0] state,
+  output reg [1:0] state_nxt_sel,
+  output reg [1:0] a_nxt_sel,
+  output reg       sub_mux_sel,
+  output reg       div_sgn_nxt_sel,
+  output reg       rem_sgn_nxt_sel     //
 );
 
 endmodule
