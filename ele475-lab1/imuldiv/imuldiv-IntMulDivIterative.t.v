@@ -118,7 +118,7 @@ module tester;
 
     #5;   t0_reset = 1'b1;
     #20;  t0_reset = 1'b0;
-    #10000; `VC_TEST_CHECK( "Is sink finished?", t0_done )
+    #10000; `VC_TEST_CHECK( "Is sink (mul) finished?", t0_done )
 
   end
   `VC_TEST_CASE_END
@@ -141,7 +141,7 @@ module tester;
 
     #5;   t0_reset = 1'b1;
     #20;  t0_reset = 1'b0;
-    #10000; `VC_TEST_CHECK( "Is sink finished?", t0_done )
+    #10000; `VC_TEST_CHECK( "Is sink (div/rem) finished?", t0_done )
 
   end
   `VC_TEST_CASE_END
@@ -162,7 +162,7 @@ module tester;
 
     #5;   t0_reset = 1'b1;
     #20;  t0_reset = 1'b0;
-    #10000; `VC_TEST_CHECK( "Is sink finished?", t0_done )
+    #10000; `VC_TEST_CHECK( "Is sink (mixed) finished?", t0_done )
 
   end
   `VC_TEST_CASE_END
