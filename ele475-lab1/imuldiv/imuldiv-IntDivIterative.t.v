@@ -125,10 +125,23 @@ module tester;
   end
   `VC_TEST_CASE_END
 
+  `VC_TEST_CASE_BEGIN( 2, "divu/remu" )
+  begin
+
+    t0.src.m[ 0] = 65'h0_ffffb14a_f5fe4fbc; t0.sink.m[ 0] = 64'h0a01618e_00000001; // 4294947146 / 4127084476 = 1 ... 167862670
+    t0.src.m[ 1] = 65'h0_f5fe4fbc_00004eb6; t0.sink.m[ 1] = 64'h000006f0_00032012; // 4127084476 / 20150 = 204818 ... 1776
+
+    #5;   t0_reset = 1'b1;
+    #20;  t0_reset = 1'b0;
+    #10000; `VC_TEST_CHECK( "Is sink (divu/remu) finished?", t0_done )
+
+  end
+  `VC_TEST_CASE_END
+
   //----------------------------------------------------------------------
   // Add Unsigned Test Case Here
   //----------------------------------------------------------------------
 
-  `VC_TEST_SUITE_END( 1 /* replace with number of tests cases */ )
+  `VC_TEST_SUITE_END( 2 /* replace with number of tests cases */ )
 
 endmodule
