@@ -120,20 +120,22 @@ module imuldiv_IntDivIterativeDpath
   wire is_oper_signed;
   wire [31:0] unsigned_a;
   wire [31:0] unsigned_b;
-  wire [65:0] a_init;
-  wire [65:0] b_init;
-  wire [65:0] a_shift;
-  wire [65:0] sub_out, sub_mux_out;
+  wire [64:0] a_init;
+  wire [64:0] b_init;
+  wire [64:0] a_shift;
+  wire [64:0] sub_out, sub_mux_out;
   wire [ 5:0] state_p1;
   wire [31:0] f_result_div, f_result_rem;
 
   //----------------------------------------------------------------------
   // Combinational Logic
   //----------------------------------------------------------------------
+  wire [31:0] div_tmp = a_reg[31:0];
+  wire [31:0] rem_tmp = a_reg[63:32];
 
   // Extract sign bits and Unsign operands if necessary
-  assign sign_bit_a = a_reg[31];
-  assign sign_bit_b = b_reg[31];
+  assign sign_bit_a = divreq_msg_a[31];
+  assign sign_bit_b = divreq_msg_b[31];
   assign is_oper_signed = (divreq_msg_fn == `IMULDIV_DIVREQ_MSG_FUNC_SIGNED);
   assign unsigned_a = (sign_bit_a & is_oper_signed) ? (~divreq_msg_a + 1'b1) : divreq_msg_a;
   assign unsigned_b = (sign_bit_b & is_oper_signed) ? (~divreq_msg_b + 1'b1) : divreq_msg_b;
@@ -216,8 +218,8 @@ module imuldiv_IntDivIterativeCtrl
   //----------------------------------------------------------------------
   // Combinational Logic
   //----------------------------------------------------------------------
-  assign div_sgn = a_sign_bit ^ b_sign_bit;
-  assign rem_sgn = a_sign_bit;
+  assign div_sgn = (a_sign_bit ^ b_sign_bit) & divreq_msg_fn;
+  assign rem_sgn = a_sign_bit & divreq_msg_fn;
 
   // MUX selectors
   always@(*) begin
