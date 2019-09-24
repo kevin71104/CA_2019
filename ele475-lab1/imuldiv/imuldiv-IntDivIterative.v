@@ -110,14 +110,14 @@ module imuldiv_IntDivIterativeDpath
   wire        rem_sgn_reg_nxt;
   reg  [ 5:0] state;            // FSM
   wire [ 5:0] state_nxt;
-  reg         divresp_val;      // Output Reg
-  wire        divresp_val_nxt; 
-  reg         divreq_rdy;       // Output Reg
-  wire        divreq_rdy_nxt;
+  //reg         divresp_val;      // Output Reg
+  //wire        divresp_val_nxt; 
+  //reg         divreq_rdy;       // Output Reg
+  //wire        divreq_rdy_nxt;
 
-  wire sign_bit_a;
-  wire sign_bit_b;
-  wire is_oper_signed;
+  wire        sign_bit_a;
+  wire        sign_bit_b;
+  wire        is_oper_signed;
   wire [31:0] unsigned_a;
   wire [31:0] unsigned_b;
   wire [64:0] a_init;
@@ -134,11 +134,11 @@ module imuldiv_IntDivIterativeDpath
   wire [31:0] rem_tmp = a_reg[63:32];
 
   // Extract sign bits and Unsign operands if necessary
-  assign sign_bit_a = divreq_msg_a[31];
-  assign sign_bit_b = divreq_msg_b[31];
+  assign sign_bit_a     = divreq_msg_a[31];
+  assign sign_bit_b     = divreq_msg_b[31];
   assign is_oper_signed = (divreq_msg_fn == `IMULDIV_DIVREQ_MSG_FUNC_SIGNED);
-  assign unsigned_a = (sign_bit_a & is_oper_signed) ? (~divreq_msg_a + 1'b1) : divreq_msg_a;
-  assign unsigned_b = (sign_bit_b & is_oper_signed) ? (~divreq_msg_b + 1'b1) : divreq_msg_b;
+  assign unsigned_a     = (sign_bit_a & is_oper_signed) ? (~divreq_msg_a + 1'b1) : divreq_msg_a;
+  assign unsigned_b     = (sign_bit_b & is_oper_signed) ? (~divreq_msg_b + 1'b1) : divreq_msg_b;
 
   // minor wires
   assign a_init   = {33'b0, {unsigned_a}};
@@ -164,8 +164,10 @@ module imuldiv_IntDivIterativeDpath
 
   //==== OUTPUT SECTION ====
   assign divresp_msg_result = a_reg[63:0];
-  assign divreq_rdy_nxt     = divresp_rdy && (state == 6'd32);
-  assign divresp_val_nxt    = (state == 6'd32);
+  assign divreq_rdy  = reset || (state == 6'd0 && ~divreq_val) || (state == 6'd33);
+  assign divresp_val = state == 6'd33;
+  //assign divreq_rdy_nxt     = divresp_rdy && ((state == 6'd32) || (state == 6'd0 && ~divreq_val));
+  //assign divresp_val_nxt    = divresp_rdy && (state == 6'd32);
 
   //----------------------------------------------------------------------
   // Sequential Logic
@@ -178,8 +180,8 @@ module imuldiv_IntDivIterativeDpath
       div_sgn_reg <=  1'b0;
       rem_sgn_reg <=  1'b0;
       state       <=  6'b0;
-      divresp_val <=  1'b0;
-      divreq_rdy  <=  1'b0;
+      //divresp_val <=  1'b0;
+      //divreq_rdy  <=  1'b1;
     end
     else if (divresp_rdy) begin        // Stall the pipeline if the response interface is not ready
       a_reg       <= a_reg_nxt;
@@ -187,8 +189,8 @@ module imuldiv_IntDivIterativeDpath
       div_sgn_reg <= div_sgn_reg_nxt;
       rem_sgn_reg <= rem_sgn_reg_nxt;
       state       <= state_nxt;
-      divresp_val <= divresp_val_nxt;
-      divreq_rdy  <= divreq_rdy_nxt;
+      //divresp_val <= divresp_val_nxt;
+      //divreq_rdy  <= divreq_rdy_nxt;
     end
 
   end
@@ -211,7 +213,7 @@ module imuldiv_IntDivIterativeCtrl
   output           rem_sgn,
   output reg [1:0] state_nxt_sel,
   output reg [1:0] a_nxt_sel,
-  output reg [1:0] b_nxt_sel,
+  output reg       b_nxt_sel,
   output reg       div_sgn_nxt_sel,
   output reg       rem_sgn_nxt_sel     //
 );
