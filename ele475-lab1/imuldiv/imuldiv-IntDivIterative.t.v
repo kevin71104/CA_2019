@@ -125,6 +125,10 @@ module tester;
   end
   `VC_TEST_CASE_END
 
+  //----------------------------------------------------------------------
+  // Add Unsigned Test Case Here
+  //----------------------------------------------------------------------
+
   `VC_TEST_CASE_BEGIN( 2, "divu/remu" )
   begin
 
@@ -137,10 +141,6 @@ module tester;
 
   end
   `VC_TEST_CASE_END
-
-  //----------------------------------------------------------------------
-  // Add Unsigned Test Case Here
-  //----------------------------------------------------------------------
 
   `VC_TEST_SUITE_END( 2 /* replace with number of tests cases */ )
 

@@ -153,12 +153,21 @@ module tester;
     t0.src.m[ 1] = 67'h0_fffffff8_fffffff8; t0.sink.m[ 1] = 64'h00000000_00000040;
     t0.src.m[ 2] = 67'h0_0deadbee_10000000; t0.sink.m[ 2] = 64'h00deadbe_e0000000;
     t0.src.m[ 3] = 67'h0_deadbeef_10000000; t0.sink.m[ 3] = 64'hfdeadbee_f0000000;
+    // div
     t0.src.m[ 4] = 65'h1_0a01b044_ffffb14a; t0.sink.m[ 4] = 64'h00003372_ffffdf75;
     t0.src.m[ 5] = 65'h1_deadbeef_0000beef; t0.sink.m[ 5] = 64'hffffda72_ffffd353;
     t0.src.m[ 6] = 65'h1_f5fe4fbc_00004eb6; t0.sink.m[ 6] = 64'hffffcc8e_ffffdf75;
     t0.src.m[ 7] = 65'h1_f5fe4fbc_ffffb14a; t0.sink.m[ 7] = 64'hffffcc8e_0000208b;
-
     // Add entries for divu/remu here
+    t0.src.m[ 8] = 67'h2_ffffb14a_f5fe4fbc; t0.sink.m[ 8] = 64'h0a01618e_00000001; // 4294947146 / 4127084476 = 1 ... 167862670
+    t0.src.m[ 9] = 67'h2_f5fe4fbc_00004eb6; t0.sink.m[ 9] = 64'h000006f0_00032012; // 4127084476 / 20150 = 204818 ... 1776
+    t0.src.m[10] = 67'h4_ffffb14a_f5fe4fbc; t0.sink.m[10] = 64'h0a01618e_00000001; // 4294947146 / 4127084476 = 1 ... 167862670
+    t0.src.m[11] = 67'h4_f5fe4fbc_00004eb6; t0.sink.m[11] = 64'h000006f0_00032012;
+    // rem
+    t0.src.m[12] = 65'h1_0a01b044_ffffb14a; t0.sink.m[12] = 64'h00003372_ffffdf75;
+    t0.src.m[13] = 65'h1_deadbeef_0000beef; t0.sink.m[13] = 64'hffffda72_ffffd353;
+    t0.src.m[14] = 65'h1_f5fe4fbc_00004eb6; t0.sink.m[14] = 64'hffffcc8e_ffffdf75;
+    t0.src.m[15] = 65'h1_f5fe4fbc_ffffb14a; t0.sink.m[15] = 64'hffffcc8e_0000208b;
 
     #5;   t0_reset = 1'b1;
     #20;  t0_reset = 1'b0;
