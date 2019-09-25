@@ -110,10 +110,6 @@ module imuldiv_IntDivIterativeDpath
   wire        rem_sgn_reg_nxt;
   reg  [ 5:0] state;            // FSM
   wire [ 5:0] state_nxt;
-  //reg         divresp_val;      // Output Reg
-  //wire        divresp_val_nxt; 
-  //reg         divreq_rdy;       // Output Reg
-  //wire        divreq_rdy_nxt;
 
   wire        sign_bit_a;
   wire        sign_bit_b;
@@ -159,15 +155,14 @@ module imuldiv_IntDivIterativeDpath
   assign b_reg_nxt       = b_nxt_sel ? b_init : b_reg;
   assign div_sgn_reg_nxt = div_sgn_nxt_sel ? div_sgn : div_sgn_reg;
   assign rem_sgn_reg_nxt = rem_sgn_nxt_sel ? rem_sgn : rem_sgn_reg;
-  assign state_nxt       = state_nxt_sel[1] ? state_p1 :
+  assign state_nxt       = state_nxt_sel[1] ?
+                           (state_nxt_sel[0] ? 6'd1 : state_p1) :
                            state_nxt_sel[0] ? 6'b0 : state;
 
   //==== OUTPUT SECTION ====
   assign divresp_msg_result = a_reg[63:0];
-  assign divreq_rdy  = reset || (state == 6'd0 && ~divreq_val) || (state == 6'd33);
+  assign divreq_rdy  = reset || (state == 6'd0) || (state == 6'd34);
   assign divresp_val = state == 6'd33;
-  //assign divreq_rdy_nxt     = divresp_rdy && ((state == 6'd32) || (state == 6'd0 && ~divreq_val));
-  //assign divresp_val_nxt    = divresp_rdy && (state == 6'd32);
 
   //----------------------------------------------------------------------
   // Sequential Logic
@@ -180,8 +175,6 @@ module imuldiv_IntDivIterativeDpath
       div_sgn_reg <=  1'b0;
       rem_sgn_reg <=  1'b0;
       state       <=  6'b0;
-      //divresp_val <=  1'b0;
-      //divreq_rdy  <=  1'b1;
     end
     else if (divresp_rdy) begin        // Stall the pipeline if the response interface is not ready
       a_reg       <= a_reg_nxt;
@@ -189,8 +182,6 @@ module imuldiv_IntDivIterativeDpath
       div_sgn_reg <= div_sgn_reg_nxt;
       rem_sgn_reg <= rem_sgn_reg_nxt;
       state       <= state_nxt;
-      //divresp_val <= divresp_val_nxt;
-      //divreq_rdy  <= divreq_rdy_nxt;
     end
 
   end
@@ -258,9 +249,18 @@ module imuldiv_IntDivIterativeCtrl
     else if (state == 6'd33) begin // OUTPUT STAGE
       a_nxt_sel       = 2'd0;
       b_nxt_sel       = 1'b0;
-      state_nxt_sel   = 2'd1;
+      state_nxt_sel   = 2'd2;
       div_sgn_nxt_sel = 1'b0;
       rem_sgn_nxt_sel = 1'b0;
+    end
+    else if (state == 6'd34) begin // INIT STAGE
+      if (divreq_val) begin
+        a_nxt_sel       = 2'd1;
+        b_nxt_sel       = 1'b1;
+        state_nxt_sel   = 2'd3;
+        div_sgn_nxt_sel = 1'b1;
+        rem_sgn_nxt_sel = 1'b1;
+      end
     end
   end
 
